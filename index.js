@@ -17,7 +17,7 @@ var pathFinder = new PF.AStarFinder({
 
 var path;
 
-client.connect(12323, '31.46.64.35', function() {
+/*client.connect(12323, '31.46.64.35', function() {
 	client.write(JSON.stringify({token}));
 });
 
@@ -54,7 +54,7 @@ client.on('data', function(data) {
 
 client.on('close', function() {
 	console.log('Connection closed');
-});
+});*/
 
 
 
@@ -207,19 +207,30 @@ function findPath(startX, startY, destX, destY){
 
         for(var i = 1; i < avalaibleTiles.length; i++){
             if(openList.some(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y)){
+                var routeToProcessedTile = mapOfPreviousTiles.find(element => element.to.pos.x == tileToProcess.pos.x && element.to.pos.y == tileToProcess.pos.y);
+
                 var tileInOpenList = openList.find(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y);
-                
-                if(tileToProcess.distance + 1 + clalculateManhattanDistance(avalaibleTiles[i],destination) < tileInOpenList.heuristic + tileInOpenList.distance){
-                    var heuristic = clalculateManhattanDistance(destination, avalaibleTiles[i]);
+                var newDistance = tileToProcess.distance + 1 + clalculateHeuristic(avalaibleTiles[i],destination);
+                if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
+                    newDistance++;
+                if(newDistance < tileInOpenList.heuristic + tileInOpenList.distance){
+                    var heuristic = clalculateHeuristic(destination, avalaibleTiles[i]);
                     var newTile = { pos: {x:avalaibleTiles[i].pos.x, y: avalaibleTiles[i].pos.y}, heuristic: heuristic, distance: tileToProcess.distance+1};
+                    
+                    if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
+                        newTile.distance++;
                     var indexOfTile = openList.findIndex(element => element.to.pos.x == newTile.pos.x && element.to.pos.y == newTile.pos.y)
                     openList.splice(indexOfTile,1);
                     mapOfPreviousTiles.push({from: tileToProcess, to: newTile});
                 }
             }else{
                 if (!openList.some(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y)){
-                    var heuristic = clalculateManhattanDistance(destination, avalaibleTiles[i]);
+                    var heuristic = clalculateHeuristic(destination, avalaibleTiles[i]);
+
+                    var routeToProcessedTile = mapOfPreviousTiles.find(element => element.to.pos.x == tileToProcess.pos.x && element.to.pos.y == tileToProcess.pos.y);
                     var newTile = { pos: {x:avalaibleTiles[i].pos.x, y: avalaibleTiles[i].pos.y}, heuristic: heuristic, distance: tileToProcess.distance+1}
+                    if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
+                        newTile.distance++;
                     openList.push(newTile);
                     mapOfPreviousTiles.push({from: tileToProcess, to: newTile});
                 }
@@ -227,6 +238,15 @@ function findPath(startX, startY, destX, destY){
         }
     }
     return createPathFromPrevList(startPoint, destination, mapOfPreviousTiles);
+}
+
+function isThereTurn(reouteToProcessedTile,tile){
+    var xdiff = reouteToProcessedTile.to.x - reouteToProcessedTile.from.x;
+    var ydiff = reouteToProcessedTile.to.y - reouteToProcessedTile.from.y;
+    if( (tile.pos.x == reouteToProcessedTile.to.x + xdiff) && (tile.pos.y == reouteToProcessedTile.to.y + ydiff))
+        return false;
+    else
+        return true;
 }
 
 function createPathFromPrevList(startPoint, destination, mapOfPreviousTiles){
@@ -239,9 +259,46 @@ function createPathFromPrevList(startPoint, destination, mapOfPreviousTiles){
     return reversePath.reverse();
 }
 
-function clalculateManhattanDistance(from, to){
+function clalculateHeuristic(from, to){
+    var manthattanHeur = calculateManhattanDistance(from, to);
+    var findEdgeRoads = findEdgesWithHeuristics(from);
+    var heuristic = manthattanHeur;
+    
+    for(var i = 0; i < findEdgeRoads.length; i++)
+        if(findEdgeRoads[i].heuristic < manthattanHeur){
+            var otherSideNeighbor  = findOtherSideNeighbor(findEdgeRoads[i]);
+            var newHeur = findEdgeRoads[i].heuristic + 1 + calculateManhattanDistance(otherSideNeighbor, to);
+            if(newHeur<heuristic)
+                heuristic = newHeur;
+        }
+    return heuristic;
+}
+
+function calculateManhattanDistance(from, to){
     return Math.abs( from.pos.x - to.pos.x) + Math.abs(from.pos.y - to.pos.y);
 }
+
+function findOtherSideNeighbor(tile){
+    if(tile.pos.x == 0)
+        tile.pos.x = 59;
+    else if(tile.pos.x == 59)
+        tile.pos.x = 0;
+    if(tile.pos.y == 0)
+        tile.pos.y = 59;
+    else if(tile.pos.y == 59)
+        tile.pos.y = 0;
+    return tile;
+}
+
+function findEdgesWithHeuristics(from){
+    var edges = [];
+    for(var i=0; i < 60;i++)
+        for(var j=0; j < 60;j++)
+            if( walkable[i][j]==0 && (i==0 || i==59||j==0||j==59) )
+                edges.push({pos:{x: j,y:i}, heuristic: calculateManhattanDistance({pos:{x: j,y:i}},from) });
+    return edges;
+}
+
 
 function avalaibleTilesFromProcessedTile(tileToProcess){
     var upCoordinate = tileToProcess.pos.y-1 > 0 ? tileToProcess.pos.y-1 : 59;
@@ -272,7 +329,7 @@ function findPositionToGetIn(passenger,car){
     var closestGetIn = accessableGetIns[0];
 
     for(var i = 0; i < accessableGetIns.length; i++){
-        if( Math.abs(accessableGetIns[i].pos.x - car.pos.x) + Math.abs(accessableGetIns[i].pos.y - car.pos.y) < Math.abs(closestGetIn.pos.x - car.pos.x) + Math.abs(closestGetIn.pos.y - car.pos.y))
+        if( clalculateHeuristic(car, accessableGetIns[i]) < clalculateHeuristic(car, closestGetIn))
             closestGetIn = accessableGetIns[i];
     }
     console.log("next destination: "+closestGetIn)

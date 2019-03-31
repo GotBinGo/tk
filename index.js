@@ -191,9 +191,11 @@ function setPathToNextPassenger(data){
     path = findPath(car.pos.x, car.pos.y, getInPosition.pos.x, getInPosition.pos.y);
 }
 
+console.log(findPath(3,3,57,3));
+
 function findPath(startX, startY, destX, destY){
     var destination = { pos:  {x:destX, y:destY}};
-    var startPoint = { pos: {x:startX, y: startY}, heuristic: Math.abs( startX - destX) + Math.abs(startY - destY), distance: 0}
+    var startPoint = { pos: {x:startX, y: startY}, heuristic: clalculateHeuristic({ pos: {x:startX, y: startY}},{pos:  {x:destX, y:destY}}), distance: 0};
     var openList = [startPoint];
     var closedList = [];
     var mapOfPreviousTiles = [];
@@ -210,10 +212,10 @@ function findPath(startX, startY, destX, destY){
                 var routeToProcessedTile = mapOfPreviousTiles.find(element => element.to.pos.x == tileToProcess.pos.x && element.to.pos.y == tileToProcess.pos.y);
 
                 var tileInOpenList = openList.find(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y);
-                var newDistance = tileToProcess.distance + 1 + clalculateHeuristic(avalaibleTiles[i],destination);
+                var maybeBetterWayValue = tileToProcess.distance + 1 + clalculateHeuristic(avalaibleTiles[i],destination);
                 if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
-                    newDistance++;
-                if(newDistance < tileInOpenList.heuristic + tileInOpenList.distance){
+                    maybeBetterWayValue++;
+                if(maybeBetterWayValue < tileInOpenList.heuristic + tileInOpenList.distance){
                     var heuristic = clalculateHeuristic(destination, avalaibleTiles[i]);
                     var newTile = { pos: {x:avalaibleTiles[i].pos.x, y: avalaibleTiles[i].pos.y}, heuristic: heuristic, distance: tileToProcess.distance+1};
                     
@@ -224,13 +226,15 @@ function findPath(startX, startY, destX, destY){
                     mapOfPreviousTiles.push({from: tileToProcess, to: newTile});
                 }
             }else{
-                if (!openList.some(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y)){
+                if (!closedList.some(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y)){
                     var heuristic = clalculateHeuristic(destination, avalaibleTiles[i]);
-
-                    var routeToProcessedTile = mapOfPreviousTiles.find(element => element.to.pos.x == tileToProcess.pos.x && element.to.pos.y == tileToProcess.pos.y);
-                    var newTile = { pos: {x:avalaibleTiles[i].pos.x, y: avalaibleTiles[i].pos.y}, heuristic: heuristic, distance: tileToProcess.distance+1}
-                    if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
-                        newTile.distance++;
+                    var newTile = { pos: {x:avalaibleTiles[i].pos.x, y: avalaibleTiles[i].pos.y}, heuristic: heuristic, distance: tileToProcess.distance+1};
+                    
+                    if(mapOfPreviousTiles.some(element => element.to.pos.x == tileToProcess.pos.x && element.to.pos.y == tileToProcess.pos.y)){
+                        var routeToProcessedTile = mapOfPreviousTiles.find(element => element.to.pos.x == tileToProcess.pos.x && element.to.pos.y == tileToProcess.pos.y);
+                        if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
+                            newTile.distance++;
+                    }
                     openList.push(newTile);
                     mapOfPreviousTiles.push({from: tileToProcess, to: newTile});
                 }

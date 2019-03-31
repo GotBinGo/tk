@@ -42,7 +42,6 @@ function setPath(data){
     }else{
         setPathToNextPassenger(data);
     }
-    optimizeDiagonalRoadSection();
 }
 function setPathToPassengerDest(data){
     var car = data.cars.find(car => car.id == 0);
@@ -55,20 +54,75 @@ function setPathToNextPassenger(data){
     var passenger = data.passengers[0];
     var getInPosition = findPositionToGetIn(passenger,car);
 
-    path = pathFinder.findPath(car.pos.x, car.pos.y, getInPosition.pos.x, getInPosition.pos.y, grid);
+    //path = pathFinder.findPath(car.pos.x, car.pos.y, getInPosition.pos.x, getInPosition.pos.y, grid);
+    path = findPath(car.pos.x, car.pos.y, getInPosition.pos.x, getInPosition.pos.y);
     }
 
-function optimizeDiagonalRoadSection(){
-    console.log("distance: "+path.length);
+
+
+
+function findPath(startX, startY, destX, destY){
+    var startHeuristic = Math.abs( startX - destX) + Math.abs(startY - destY);
+    var destination = {pos:{x:destX,y:destY}};
+    var openList = [{ pos: {x:startX, y: startY}, heuristic: startHeuristic, distance: 0}];
+    var closedList = [];
+    var mapOfPreviousTiles = [];
+    while(closedList.some(element => element.x == destX && element.y ==destY)){
+        var tileToProcess = chooseTheBestTileFromList(openList);
+        openList.remove(element => element.x == tileToProcess.pos.x && element.y == tileToProcess.pos.y);
+        closedList.add(tileToProcess);
+        var avalaibleTiles = avalaibleTilesFromProcessedTile(tileToProcess);
+        for(var i = 1; i < avalaibleTiles.length; i++){
+            if(openList.some(element => element.x == clalculateManhattanDistance.pos.x && element.y == avalaibleTiles[i].pos.y)){
+                var tileInOpenList = openList.find(element => element.x == avalaibleTiles[i].pos.x && element.y == avalaibleTiles[i].pos.y)
+                if(tileToProcess.distance + 1 + clalculateManhattanDistanc(avalaibleTiles[i],destination) < tileInOpenList.heuristic + tileInOpenList.distance){
+                    var heuristic = clalculateManhattanDistance(destination, avalaibleTiles[i]);
+                    var newTile = { pos: {x:avalaibleTiles[i].pos.x, y: avalaibleTiles[i].pos.y}, heuristic: heuristic, distance: tileToProcess.distance+1};
+                    mapOfPreviousTiles.remove(element => element.to.pos.x == newTile.pos.x && element.to.pos.y == newTile.pos.y)
+                    mapOfPreviousTiles.add({from: tileToProcess, to: newTile});
+                }
+            }else{
+                if (!openList.some(element => element.x == avalaibleTiles[i].pos.x && element.y == avalaibleTiles[i].pos.y)){
+                    var heuristic = clalculateManhattanDistance(destination, avalaibleTiles[i]);
+                    var newTile = { pos: {x:avalaibleTiles[i].pos.x, y: avalaibleTiles[i].pos.y}, heuristic: heuristic, distance: tileToProcess.distance+1}
+                    openList.add(newTile);
+                    mapOfPreviousTiles.add({from: tileToProcess, to: newTile});
+                }
+            }
+        }
+    }
 }
 
+function clalculateManhattanDistance(from, to){
+    return Math.abs( startX - destX) + Math.abs(startY - destY);
+}
+
+function avalaibleTilesFromProcessedTile(tileToProcess){
+    var upCoordinate = tileToProcess.pos.y-1 > 0 ? tileToProcess.pos.y-1 : 59;
+    var leftCoordinate = tileToProcess.pos.x-1 >  0 ? tileToProcess.pos.x-1 : 59;
+    var rightCoordinate = tileToProcess.pos.x+1 < 60 ? tileToProcess.pos.x+1 : 0;
+    var downCoordinate = tileToProcess.pos.y+1 < 60 ? tileToProcess.pos.y+1 : 0;
+    return getAccessableNeighbors(upCoordinate,rightCoordinate,downCoordinate,leftCoordinate,tileToProcess);
+}
+
+function chooseTheBestTileFromList(openList){
+    var tileToProcess = openList[0];
+    for(var i = 1; i < openList.length; i++)
+        if(openList[i].distance+openList[i].heuristic < tileToProcess.distance+tileToProcess.heuristic)
+                tileToProcess = openList[i];
+    return tileToProcess;
+}
+
+
 function findPositionToGetIn(passenger,car){
-    var possibleGetIns = [
-        {accessable: walkable[passenger.pos.y-1][passenger.pos.x ], pos: {x: passenger.pos.x, y:passenger.pos.y-1}},
-        {accessable: walkable[passenger.pos.y+1][passenger.pos.x ], pos: {x: passenger.pos.x, y:passenger.pos.y+1}},
-        {accessable: walkable[passenger.pos.y][passenger.pos.x-1 ], pos: {x: passenger.pos.x-1, y:passenger.pos.y}},
-        {accessable: walkable[passenger.pos.y][passenger.pos.x+1 ], pos: {x: passenger.pos.x+1, y:passenger.pos.y}}];
-    var accessableGetIns = possibleGetIns.filter(getIn => getIn.accessable == 0);
+
+    //Ne legyen tulindexeles
+    var upCoordinate = passenger.pos.y-1 > 0 ? passenger.pos.y-1 : passenger.pos.x+1;
+    var leftCoordinate = passenger.pos.x-1 >  0 ? passenger.pos.x-1 :passenger.pos.x+1;
+    var rightCoordinate = passenger.pos.x+1 < 60 ? passenger.pos.x+1 : passenger.pos.x-1;
+    var downCoordinate = passenger.pos.y+1 < 60 ? passenger.pos.y+1 : passenger.pos.y-1;
+    var accessableGetIns = getAccessableNeighbors(upCoordinate,rightCoordinate,downCoordinate,leftCoordinate,passenger);
+
     var closestGetIn = accessableGetIns[0];
 
     for(var i = 0; i < accessableGetIns.length; i++){
@@ -78,4 +132,13 @@ function findPositionToGetIn(passenger,car){
     console.log("next destination: "+closestGetIn)
     
     return closestGetIn;
+}
+
+function getAccessableNeighbors(upCoordinate,rightCoordinate,downCoordinate,leftCoordinate,center){
+    return[
+        {accessable: walkable[upCoordinate][center.pos.x ], pos: {x: center.pos.x, y:upCoordinate}},
+        {accessable: walkable[downCoordinate][center.pos.x ], pos: {x: center.pos.x, y:downCoordinate}},
+        {accessable: walkable[center.pos.y][leftCoordinate ], pos: {x: leftCoordinate, y:center.pos.y}},
+        {accessable: walkable[center.pos.y][rightCoordinate ], pos: {x: rightCoordinate, y:center.pos.y}}].filter(getIn => getIn.accessable == 0);
+
 }

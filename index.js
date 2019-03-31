@@ -3,7 +3,7 @@ var PF = require('pathfinding');
 var fs  = require("fs");
 
 var map = fs.readFileSync('map.txt').toString().split("\n").map(item => item.trim());
-var map2DWithLetters = map.map(x => x.split(''));path
+var map2DWithLetters = map.map(x => x.split(''));
 
 var client = new net.Socket();
 token = "XCm41v5wXaM3TzNraLdRNIoHH159v1PXaQiE2ARfNDmF1RQuxmYzTCm3HJWGuGsuGckiDuw";
@@ -189,45 +189,58 @@ function setPathToNextPassenger(data){
 
     //path = pathFinder.findPath(car.pos.x, car.pos.y, getInPosition.pos.x, getInPosition.pos.y, grid);
     path = findPath(car.pos.x, car.pos.y, getInPosition.pos.x, getInPosition.pos.y);
-    }
-
-
-
+}
 
 function findPath(startX, startY, destX, destY){
-    var startHeuristic = Math.abs( startX - destX) + Math.abs(startY - destY);
-    var destination = {pos:{x:destX,y:destY}};
-    var openList = [{ pos: {x:startX, y: startY}, heuristic: startHeuristic, distance: 0}];
+    var destination = { pos:  {x:destX, y:destY}};
+    var startPoint = { pos: {x:startX, y: startY}, heuristic: Math.abs( startX - destX) + Math.abs(startY - destY), distance: 0}
+    var openList = [startPoint];
     var closedList = [];
     var mapOfPreviousTiles = [];
-    while(closedList.some(element => element.x == destX && element.y ==destY)){
+
+    while(!closedList.some(element => element.pos.x == destX && element.pos.y ==destY)){
         var tileToProcess = chooseTheBestTileFromList(openList);
-        openList.remove(element => element.x == tileToProcess.pos.x && element.y == tileToProcess.pos.y);
-        closedList.add(tileToProcess);
+        var indexOfNewTile = openList.findIndex(element => element.pos.x == tileToProcess.pos.x && element.pos.y == tileToProcess.pos.y);
+        openList.splice(indexOfNewTile,1);
+        closedList.push(tileToProcess);
         var avalaibleTiles = avalaibleTilesFromProcessedTile(tileToProcess);
+
         for(var i = 1; i < avalaibleTiles.length; i++){
-            if(openList.some(element => element.x == clalculateManhattanDistance.pos.x && element.y == avalaibleTiles[i].pos.y)){
-                var tileInOpenList = openList.find(element => element.x == avalaibleTiles[i].pos.x && element.y == avalaibleTiles[i].pos.y)
-                if(tileToProcess.distance + 1 + clalculateManhattanDistanc(avalaibleTiles[i],destination) < tileInOpenList.heuristic + tileInOpenList.distance){
+            if(openList.some(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y)){
+                var tileInOpenList = openList.find(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y);
+                
+                if(tileToProcess.distance + 1 + clalculateManhattanDistance(avalaibleTiles[i],destination) < tileInOpenList.heuristic + tileInOpenList.distance){
                     var heuristic = clalculateManhattanDistance(destination, avalaibleTiles[i]);
                     var newTile = { pos: {x:avalaibleTiles[i].pos.x, y: avalaibleTiles[i].pos.y}, heuristic: heuristic, distance: tileToProcess.distance+1};
-                    mapOfPreviousTiles.remove(element => element.to.pos.x == newTile.pos.x && element.to.pos.y == newTile.pos.y)
-                    mapOfPreviousTiles.add({from: tileToProcess, to: newTile});
+                    var indexOfTile = openList.findIndex(element => element.to.pos.x == newTile.pos.x && element.to.pos.y == newTile.pos.y)
+                    openList.splice(indexOfTile,1);
+                    mapOfPreviousTiles.push({from: tileToProcess, to: newTile});
                 }
             }else{
-                if (!openList.some(element => element.x == avalaibleTiles[i].pos.x && element.y == avalaibleTiles[i].pos.y)){
+                if (!openList.some(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y)){
                     var heuristic = clalculateManhattanDistance(destination, avalaibleTiles[i]);
                     var newTile = { pos: {x:avalaibleTiles[i].pos.x, y: avalaibleTiles[i].pos.y}, heuristic: heuristic, distance: tileToProcess.distance+1}
-                    openList.add(newTile);
-                    mapOfPreviousTiles.add({from: tileToProcess, to: newTile});
+                    openList.push(newTile);
+                    mapOfPreviousTiles.push({from: tileToProcess, to: newTile});
                 }
             }
         }
     }
+    return createPathFromPrevList(startPoint, destination, mapOfPreviousTiles);
+}
+
+function createPathFromPrevList(startPoint, destination, mapOfPreviousTiles){
+    var reversePath = [destination];
+    while(!reversePath.some((element) => element.pos.x == startPoint.pos.x && element.pos.y == startPoint.pos.x)){
+        var lastTileInPath = reversePath[reversePath.length-1];
+        reversePath.push(mapOfPreviousTiles.find(element => element.to.pos.x == lastTileInPath.pos.x && element.to.pos.y == lastTileInPath.pos.y).from);
+    }
+    
+    return reversePath.reverse();
 }
 
 function clalculateManhattanDistance(from, to){
-    return Math.abs( startX - destX) + Math.abs(startY - destY);
+    return Math.abs( from.pos.x - to.pos.x) + Math.abs(from.pos.y - to.pos.y);
 }
 
 function avalaibleTilesFromProcessedTile(tileToProcess){

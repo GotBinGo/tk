@@ -15,7 +15,7 @@ var pathFinder = new PF.AStarFinder({
     dontCrossCorners: true
 });
 
-var path;
+var path = [];
 
 client.connect(12323, '31.46.64.35', function() {
 	client.write(JSON.stringify({token}));
@@ -28,103 +28,55 @@ client.on('data', function(data) {
     data = JSON.parse(data.toString());
     car = data.cars.filter(x => !x.id)[0]
     carPos = car.pos;
-
+        
     setPath(data);
-    path.splice(0,1);
-    console.log(path)
-    console.log('FOUND PATH', path.length)
-
     
 
-    dx = car.pos.x - path[0].pos.x;
-    dy = car.pos.y - path[0].pos.y;
+    for(var i=0; i< car.speed;i++)
+        path.shift();
 
-    operation  = getMove(car.direction, dx, dy)
-
+    if(car.speed == 0){
+        dx = car.pos.x - path[0].pos.x;
+        dy = car.pos.y - path[0].pos.y;
+        operation  = getMove(car.direction, dx, dy);
+    } else{
+        dx = path[1].pos.x - path[0].pos.x;
+        dy = path[1].pos.y - path[0].pos.y;
+        operation  = getMove(car.direction, dx, dy);
+    }
+    
     if(car.speed == 1 && operation == 'ACCELERATION')
         operation = 'NO_OP'
-    setTimeout(x => {
-        client.write(JSON.stringify({request_id: data.request_id, command: operation}));
-        console.log('SENT:', operation)
-    }, 1000);
+
+    client.write(JSON.stringify({request_id: data.request_id, command: operation}));
+    
+    //setTimeout(x => {
+    //    client.write(JSON.stringify({request_id: data.request_id, command: operation}));
+    //    console.log('SENT:', operation)
+    //}, 1000);
 });
 
 client.on('close', function() {
 	console.log('Connection closed');
 });
 
+function turnToPosition(car){
+    dx = car.pos.x - path[0].pos.x;
+    dy = car.pos.y - path[0].pos.y;
 
-
-
-function addPath(matrix, path, spec, target) {
-    var tmp = [];
-    for(line of matrix) {
-        tt = [];
-        for(c of line) {
-            tt.push(c)
-        }
-        tmp.push(tt)
-    }
-
-    for(step of path) {
-        tmp[step[1]][step[0]] = 2
-    }
-    for(step of spec) {
-        tmp[step[1]][step[0]] = 3
-    }
-    for(step of target) {
-        tmp[step[1]][step[0]] = 4
-    }
-    return tmp;    
+    getMove(car.direction,dx,dy);
 }
-
-function printMap(map) {
-    console.log(map.map(x => x.map(x => {
-        if (x == 1)
-            return 'P'
-        else if (x == 2)
-            return '.'
-        else if (x == 3)
-            return 'O'
-        else if (x == 4)
-            return 'X'
-        else 
-            return ' '
-    }).join('')));
-}
-
-function pavementToRoad(m, pos) {
-    x = pos.x
-    y = pos.y
-    if(!m[y][x])
-        return [x, y];
-    else if(x > 0 && !m[y][x - 1])
-        return [x-1, y];
-    else if(y > 0 && !m[y-1][x])
-        return [x, y-1];
-    else if(x < m[0].length && !m[y][x+1])
-        return [x+1, y];
-    else if(y < m.length && !m[y+1][x])
-        return [x, y+1];
-    else if(x > 0 && y > 0 && !m[y-1][x - 1])
-        return [x-1, y-1];
-    else if(x < m[0].length && y < m.length && !m[y+1][x+1])
-        return [x+1, y+1];
-}
-
 
 function getMove(direction, dx, dy) {
     if (direction == 'UP') {
         if(dy == 1)
             return 'ACCELERATION';
         else if (dx == 1)
-            return 'GO_RIGHT';
-        else if (dx == -1)
             return 'GO_LEFT';
+        else if (dx == -1)
+            return 'GO_RIGHT';
         else 
             return 'GO_LEFT';
-        
-
     }
     if (direction == 'DOWN') {
         if(dy == -1)
@@ -135,7 +87,6 @@ function getMove(direction, dx, dy) {
             return 'GO_LEFT';
         else 
             return 'GO_RIGHT';
-        
     }
     if (direction == 'LEFT') {
         if(dx == 1)
@@ -160,7 +111,7 @@ function getMove(direction, dx, dy) {
 }
 
 function setPath(data){
-    if(path != undefined)
+    if(path.length > 0)
         return;
     if(data.transported > 0){
         setPathToPassengerDest(data);
@@ -234,7 +185,7 @@ function findPath(startX, startY, destX, destY){
             }
         }
     }
-    return createPathFromPrevList(startPoint, destination, mapOfPreviousTiles);
+    return createPathFromPrevList(destination, mapOfPreviousTiles);
 }
 
 function isThereTurn(reouteToProcessedTile,tile){
@@ -246,13 +197,16 @@ function isThereTurn(reouteToProcessedTile,tile){
         return true;
 }
 
-function createPathFromPrevList(startPoint, destination, mapOfPreviousTiles){
+function createPathFromPrevList(destination, mapOfPreviousTiles){
     var reversePath = [destination];
     while(mapOfPreviousTiles.some(element => element.to.pos.x == reversePath[reversePath.length-1].pos.x && element.to.pos.y == reversePath[reversePath.length-1].pos.y)){
         var lastTileInPath = reversePath[reversePath.length-1];
         reversePath.push(mapOfPreviousTiles.find(element => element.to.pos.x == lastTileInPath.pos.x && element.to.pos.y == lastTileInPath.pos.y).from);
     }
-    return reversePath.reverse();
+    reversePath.reverse();
+    reversePath.shift();
+    console.log(reversePath);
+    return reversePath;
 }
 
 //console.log(clalculateHeuristic( {pos: {x: 3,y:2}},{pos: {x: 57,y:57}}));
@@ -299,8 +253,8 @@ function findEdgesWithHeuristics(from){
 
 
 function avalaibleTilesFromProcessedTile(tileToProcess){
-    var upCoordinate = tileToProcess.pos.y-1 > 0 ? tileToProcess.pos.y-1 : 59;
-    var leftCoordinate = tileToProcess.pos.x-1 >  0 ? tileToProcess.pos.x-1 : 59;
+    var upCoordinate = tileToProcess.pos.y-1 > -1 ? tileToProcess.pos.y-1 : 59;
+    var leftCoordinate = tileToProcess.pos.x-1 >  -1 ? tileToProcess.pos.x-1 : 59;
     var rightCoordinate = tileToProcess.pos.x+1 < 60 ? tileToProcess.pos.x+1 : 0;
     var downCoordinate = tileToProcess.pos.y+1 < 60 ? tileToProcess.pos.y+1 : 0;
     return getAccessableNeighbors(upCoordinate,rightCoordinate,downCoordinate,leftCoordinate,tileToProcess);
@@ -356,7 +310,6 @@ function findPositionToGetIn(passenger,car){
         if( clalculateHeuristic(car, accessableGetIns[i]) < clalculateHeuristic(car, closestGetIn))
             closestGetIn = accessableGetIns[i];
     }
-    console.log("next destination: "+closestGetIn)
     
     return closestGetIn;
 }

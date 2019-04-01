@@ -191,7 +191,8 @@ function setPathToNextPassenger(data){
     path = findPath(car.pos.x, car.pos.y, getInPosition.pos.x, getInPosition.pos.y);
 }
 
-console.log(findPath(3,3,57,3));
+console.log(findPath(3,3,57,57));
+//console.log( avalaibleTilesFromProcessedTile({pos:{x:3,y:3}}));
 
 function findPath(startX, startY, destX, destY){
     var destination = { pos:  {x:destX, y:destY}};
@@ -207,7 +208,8 @@ function findPath(startX, startY, destX, destY){
         closedList.push(tileToProcess);
         var avalaibleTiles = avalaibleTilesFromProcessedTile(tileToProcess);
 
-        for(var i = 1; i < avalaibleTiles.length; i++){
+        for(var i = 0; i < avalaibleTiles.length; i++){
+
             if(openList.some(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y)){
                 var routeToProcessedTile = mapOfPreviousTiles.find(element => element.to.pos.x == tileToProcess.pos.x && element.to.pos.y == tileToProcess.pos.y);
 
@@ -221,7 +223,7 @@ function findPath(startX, startY, destX, destY){
                     
                     if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
                         newTile.distance++;
-                    var indexOfTile = openList.findIndex(element => element.to.pos.x == newTile.pos.x && element.to.pos.y == newTile.pos.y)
+                    var indexOfTile = mapOfPreviousTiles.findIndex(element => element.to.pos.x == newTile.pos.x && element.to.pos.y == newTile.pos.y)
                     openList.splice(indexOfTile,1);
                     mapOfPreviousTiles.push({from: tileToProcess, to: newTile});
                 }
@@ -245,9 +247,9 @@ function findPath(startX, startY, destX, destY){
 }
 
 function isThereTurn(reouteToProcessedTile,tile){
-    var xdiff = reouteToProcessedTile.to.x - reouteToProcessedTile.from.x;
-    var ydiff = reouteToProcessedTile.to.y - reouteToProcessedTile.from.y;
-    if( (tile.pos.x == reouteToProcessedTile.to.x + xdiff) && (tile.pos.y == reouteToProcessedTile.to.y + ydiff))
+    var xdiff = reouteToProcessedTile.to.pos.x - reouteToProcessedTile.from.pos.x;
+    var ydiff = reouteToProcessedTile.to.pos.y - reouteToProcessedTile.from.pos.y;
+    if( tile.pos.x == reouteToProcessedTile.to.pos.x + xdiff && tile.pos.y == reouteToProcessedTile.to.pos.y + ydiff)
         return false;
     else
         return true;
@@ -262,6 +264,8 @@ function createPathFromPrevList(startPoint, destination, mapOfPreviousTiles){
     
     return reversePath.reverse();
 }
+
+//console.log(clalculateHeuristic( {pos: {x: 3,y:2}},{pos: {x: 57,y:57}}));
 
 function clalculateHeuristic(from, to){
     var manthattanHeur = calculateManhattanDistance(from, to);
@@ -312,14 +316,40 @@ function avalaibleTilesFromProcessedTile(tileToProcess){
     return getAccessableNeighbors(upCoordinate,rightCoordinate,downCoordinate,leftCoordinate,tileToProcess);
 }
 
+//console.log(chooseTheBestTileFromList([ { pos:{x:3,y:2},heuristic:3, distance:3 }, { pos:{x:3,y:4},heuristic:3, distance:3 }]));
+
 function chooseTheBestTileFromList(openList){
     var tileToProcess = openList[0];
     for(var i = 1; i < openList.length; i++)
         if(openList[i].distance+openList[i].heuristic < tileToProcess.distance+tileToProcess.heuristic)
                 tileToProcess = openList[i];
+        else if(openList[i].distance+openList[i].heuristic == tileToProcess.distance+tileToProcess.heuristic && closerToEdge(openList[i],tileToProcess))
+            tileToProcess = openList[i];
     return tileToProcess;
 }
 
+//console.log(closerToEdge({pos:{x:2,y:0}},{pos:{x:2,y:2}}))
+
+function closerToEdge(openListElement, tileToProcess){
+    var edgesFromOpenList =  findEdgesWithHeuristics(openListElement);
+    var minFromOpen = edgesFromOpenList[0];
+
+    for (let i = 1; i < edgesFromOpenList.length; ++i)
+        if (edgesFromOpenList[i].heuristic < minFromOpen.heuristic)
+            minFromOpen = edgesFromOpenList[i];
+
+    var edgesFromTileToProcess = findEdgesWithHeuristics(tileToProcess);
+    var minFromProc = edgesFromTileToProcess[0];
+
+    for (let i = 1; i < edgesFromTileToProcess.length; ++i)
+        if (edgesFromTileToProcess[i].heuristic < minFromProc.heuristic)
+            minFromProc = edgesFromTileToProcess[i];
+
+    if(minFromOpen.heuristic < minFromProc.heuristic)
+        return true;
+    else 
+        return false;
+}
 
 function findPositionToGetIn(passenger,car){
 

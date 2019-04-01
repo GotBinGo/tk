@@ -17,35 +17,32 @@ var pathFinder = new PF.AStarFinder({
 
 var path;
 
-/*client.connect(12323, '31.46.64.35', function() {
+client.connect(12323, '31.46.64.35', function() {
 	client.write(JSON.stringify({token}));
 });
 
+/*var testList = [1,2,3,4,5,6,7,8,9]
+console.log(testList.splice(1,testList.length))*/
+
 client.on('data', function(data) {
     data = JSON.parse(data.toString());
-    // console.log(data);
     car = data.cars.filter(x => !x.id)[0]
     carPos = car.pos;
-    var dest = pavementToRoad(walkable, data.passengers[0].pos);
+
+    setPath(data);
+    path.splice(0,1);
+    console.log(path)
+    console.log('FOUND PATH', path.length)
+
     
-    // console.log('DEEEST', dest, data.passengers[0].pos);
-    console.log('FIND PATH', carPos.x, carPos.y, dest[0], dest[1]);
 
-    var grid = new PF.Grid(walkable);
-    var pp = pathFinder.findPath(carPos.x, carPos.y, dest[0], dest[1], grid)
-
-    console.log('FOUND PATH', pp.length, carPos.x, carPos.y, dest[0], dest[1])
-    dx = car.pos.x - pp[1][0]
-    dy = car.pos.y - pp[1][1]
-    // var pp = pathFinder.findPath(3, 3, 57, 57, grid)
-    var mwithpp = addPath(walkable, pp, [[carPos.x, carPos.y]], [ dest ]);
-    printMap(mwithpp);
+    dx = car.pos.x - path[0].pos.x;
+    dy = car.pos.y - path[0].pos.y;
 
     operation  = getMove(car.direction, dx, dy)
+
     if(car.speed == 1 && operation == 'ACCELERATION')
         operation = 'NO_OP'
-    console.log(car.direction, dx, dy, operation, car.speed)
-    // setPath(data);
     setTimeout(x => {
         client.write(JSON.stringify({request_id: data.request_id, command: operation}));
         console.log('SENT:', operation)
@@ -54,7 +51,7 @@ client.on('data', function(data) {
 
 client.on('close', function() {
 	console.log('Connection closed');
-});*/
+});
 
 
 
@@ -162,10 +159,6 @@ function getMove(direction, dx, dy) {
     }
 }
 
-
-
-
-
 function setPath(data){
     if(path != undefined)
         return;
@@ -179,19 +172,18 @@ function setPath(data){
 function setPathToPassengerDest(data){
     var car = data.cars.find(car => car.id == 0);
     var passenger = data.passengers.find(pass => pass.id == car.passenger_id);
-    path = pathFinder.findPath(car.pos.x, car.pos.y,passenger.dest_pos.x , passenger.dest_pos.y, grid);
+    path = findPath(car.pos.x, car.pos.y,passenger.dest_pos.x , passenger.dest_pos.y);
 }
 
 function setPathToNextPassenger(data){
     var car = data.cars.find(car => car.id == 0);
     var passenger = data.passengers[0];
     var getInPosition = findPositionToGetIn(passenger,car);
-
-    //path = pathFinder.findPath(car.pos.x, car.pos.y, getInPosition.pos.x, getInPosition.pos.y, grid);
     path = findPath(car.pos.x, car.pos.y, getInPosition.pos.x, getInPosition.pos.y);
 }
 
-console.log(findPath(3,3,57,57));
+//console.log(findPath(3,3,57,57));
+
 //console.log( avalaibleTilesFromProcessedTile({pos:{x:3,y:3}}));
 
 function findPath(startX, startY, destX, destY){
@@ -209,7 +201,6 @@ function findPath(startX, startY, destX, destY){
         var avalaibleTiles = avalaibleTilesFromProcessedTile(tileToProcess);
 
         for(var i = 0; i < avalaibleTiles.length; i++){
-
             if(openList.some(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y)){
                 var routeToProcessedTile = mapOfPreviousTiles.find(element => element.to.pos.x == tileToProcess.pos.x && element.to.pos.y == tileToProcess.pos.y);
 
@@ -257,11 +248,10 @@ function isThereTurn(reouteToProcessedTile,tile){
 
 function createPathFromPrevList(startPoint, destination, mapOfPreviousTiles){
     var reversePath = [destination];
-    while(!reversePath.some((element) => element.pos.x == startPoint.pos.x && element.pos.y == startPoint.pos.x)){
+    while(mapOfPreviousTiles.some(element => element.to.pos.x == reversePath[reversePath.length-1].pos.x && element.to.pos.y == reversePath[reversePath.length-1].pos.y)){
         var lastTileInPath = reversePath[reversePath.length-1];
         reversePath.push(mapOfPreviousTiles.find(element => element.to.pos.x == lastTileInPath.pos.x && element.to.pos.y == lastTileInPath.pos.y).from);
     }
-    
     return reversePath.reverse();
 }
 

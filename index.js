@@ -10,11 +10,6 @@ token = "XCm41v5wXaM3TzNraLdRNIoHH159v1PXaQiE2ARfNDmF1RQuxmYzTCm3HJWGuGsuGckiDuw
 
 var walkable = map.map(x => x.split('').map(x => (x == 'S' || x == 'Z') ? 0 : 1))
 
-var pathFinder = new PF.AStarFinder({
-    allowDiagonal: false,
-    dontCrossCorners: true
-});
-
 var path = [];
 
 client.connect(12323, '31.46.64.35', function() {
@@ -23,7 +18,7 @@ client.connect(12323, '31.46.64.35', function() {
 
 /*var testList = [1,2,3,4,5,6,7,8,9]
 console.log(testList.splice(1,testList.length))*/
-
+var i = 0;
 client.on('data', function(data) {
     data = JSON.parse(data.toString());
     car = data.cars.filter(x => !x.id)[0]
@@ -32,81 +27,117 @@ client.on('data', function(data) {
     setPath(data);
     
 
-    for(var i=0; i< car.speed;i++)
+    for(var i=0; i< car.speed;i++){
         path.shift();
-
-    if(car.speed == 0){
+    }
+        
+    var command;
+    console.log(path[0]);
+    if(car.speed == 0 && car.command != '+'){
         dx = car.pos.x - path[0].pos.x;
         dy = car.pos.y - path[0].pos.y;
-        operation  = getMove(car.direction, dx, dy);
-    } else{
-        dx = path[1].pos.x - path[0].pos.x;
-        dy = path[1].pos.y - path[0].pos.y;
-        operation  = getMove(car.direction, dx, dy);
+        command  = getMove(getDirAtCommand(car.direction,car.command), dx, dy);
+    }else{
+        if(path.length>1){
+            dx = path[0].pos.x - path[1].pos.x;
+            dy = path[0].pos.y - path[1].pos.y;
+            command  = getMove(getDirAtCommand(car.direction,car.command), dx, dy);
+        } else{
+            command = 'DECELERATION';
+        }
     }
-    
-    if(car.speed == 1 && operation == 'ACCELERATION')
-        operation = 'NO_OP'
+    if(car.speed == 1 && command == 'ACCELERATION')
+        command = 'NO_OP'
 
-    client.write(JSON.stringify({request_id: data.request_id, command: operation}));
-    
-    //setTimeout(x => {
-    //    client.write(JSON.stringify({request_id: data.request_id, command: operation}));
-    //    console.log('SENT:', operation)
-    //}, 1000);
+    //client.write(JSON.stringify({request_id: data.request_id, command: command}));
+
+    setTimeout(x => {
+        client.write(JSON.stringify({request_id: data.request_id, command: command}));
+        console.log('SENT:', command +" ",car.direction +"  ",dx + "  ",dy);
+    }, 1000);
 });
 
 client.on('close', function() {
 	console.log('Connection closed');
 });
 
-function turnToPosition(car){
-    dx = car.pos.x - path[0].pos.x;
-    dy = car.pos.y - path[0].pos.y;
-
-    getMove(car.direction,dx,dy);
-}
-
 function getMove(direction, dx, dy) {
+    console.log(direction);
     if (direction == 'UP') {
         if(dy == 1)
             return 'ACCELERATION';
         else if (dx == 1)
-            return 'GO_LEFT';
+            return 'CAR_INDEX_RIGHT';
         else if (dx == -1)
-            return 'GO_RIGHT';
+            return 'CAR_INDEX_LEFT';
         else 
-            return 'GO_LEFT';
+            return 'CAR_INDEX_LEFT';
     }
     if (direction == 'DOWN') {
         if(dy == -1)
             return 'ACCELERATION';
         else if (dx == 1)
-            return 'GO_RIGHT';
+            return 'CAR_INDEX_RIGHT';
         else if (dx == -1)
-            return 'GO_LEFT';
+            return 'CAR_INDEX_LEFT';
         else 
-            return 'GO_RIGHT';
+            return 'CAR_INDEX_RIGHT';
     }
     if (direction == 'LEFT') {
         if(dx == 1)
             return 'ACCELERATION';
         else if (dy == 1)
-            return 'GO_RIGHT';
+            return 'CAR_INDEX_RIGHT';
         else if (dy == -1)
-            return 'GO_LEFT';
+            return 'CAR_INDEX_LEFT';
         else 
-            return 'GO_LEFT';
+            return 'CAR_INDEX_LEFT';
     }
     if (direction == 'RIGHT') {
         if(dx == -1)
             return 'ACCELERATION';
         else if (dy == 1)
-            return 'GO_LEFT';
+            return 'CAR_INDEX_LEFT';
         else if (dy == -1)
-            return 'GO_RIGHT';
+            return 'CAR_INDEX_RIGHT';
         else 
-            return 'GO_RIGHT';
+            return 'CAR_INDEX_RIGHT';
+    }
+}
+
+console.log(getDirAtCommand('DOWN','>'))
+
+function getDirAtCommand(direction,command){
+    if(command == '0' || command =='+' || command == '-')
+        return direction;
+    if (direction == 'UP'){
+        if(command =='>'){
+            return 'RIGHT';
+        }
+        if(command == '<'){
+            return 'LEFT';
+        }
+    } else if (direction == 'DOWN'){
+        if(command =='>'){
+            return 'RIGHT';
+        }
+        if(command == '<'){
+            return 'LEFT';
+        }
+    } else if (direction == 'LEFT'){
+        if(command =='>'){
+            return 'UP';
+        }
+        if(command == '<'){
+            return 'DOWN';
+        }
+    } else if (direction == 'RIGHT'){
+        if(command =='>'){
+            return 'DOWN';
+        }
+        if(command == '<'){
+            return 'UP';
+        }
     }
 }
 

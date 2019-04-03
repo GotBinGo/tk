@@ -27,85 +27,136 @@ client.on('data', function(data) {
     setPath(data);
     
 
-    for(var i=0; i< car.speed;i++){
-        path.shift();
-    }
+
+    //if(car.command == "+")
+    //    path.shift();
         
     var command;
-    console.log(path[0]);
-    if(car.speed == 0 && car.command != '+'){
-        dx = car.pos.x - path[0].pos.x;
-        dy = car.pos.y - path[0].pos.y;
-        command  = getMove(getDirAtCommand(car.direction,car.command), dx, dy);
-    }else{
-        if(path.length>1){
+    if(path.length > 1){
+        if(car.speed == 0){
+            dx = car.pos.x - path[0].pos.x;
+            dy = car.pos.y - path[0].pos.y;
+        }else{
             dx = path[0].pos.x - path[1].pos.x;
             dy = path[0].pos.y - path[1].pos.y;
-            command  = getMove(getDirAtCommand(car.direction,car.command), dx, dy);
-        } else{
-            command = 'DECELERATION';
+            
         }
+        command  = getMove(car.direction, dx, dy);
+
+
+        var mwithpp = addPath(walkable, path.map(x => [x.pos.x,x.pos.y]), [[carPos.x, carPos.y]],[]);
+        // var mwithpp = addPath(walkable, path.map(x => [x.pos.x,x.pos.y]), [], [[path[path.length-1].x, path[path.length-1].y]]);
+        printMap(mwithpp);
+
+        if(car.speed >= 1 && command == 'ACCELERATION')
+            command = 'NO_OP'
+    }else{
+        command = 'DECELERATION';
+
     }
-    if(car.speed == 1 && command == 'ACCELERATION')
-        command = 'NO_OP'
 
     //client.write(JSON.stringify({request_id: data.request_id, command: command}));
 
+    console.log('prev car ifnos  ',car.command+"  ",car.direction+"  "+car.speed,car.life,car.transported);
+    console.log('SENT:', command +"  ",dx + "  ",dy);
+    console.log(carPos,"  ",path[0])
+    console.log()
+
     setTimeout(x => {
         client.write(JSON.stringify({request_id: data.request_id, command: command}));
-        console.log('SENT:', command +" ",car.direction +"  ",dx + "  ",dy);
-    }, 1000);
+
+    }, 1);
 });
 
 client.on('close', function() {
 	console.log('Connection closed');
 });
 
+function printMap(map) {
+    console.log(map.map(x => x.map(x => {
+        if (x == 1)
+            return 'P'
+        else if (x == 2)
+            return '.'
+        else if (x == 3)
+            return 'O'
+        else if (x == 4)
+            return 'X'
+        else 
+            return ' '
+    }).join('')));
+}
+
+function addPath(matrix, path, spec, target) {
+    var tmp = [];
+    for(line of matrix) {
+        tt = [];
+        for(c of line) {
+            tt.push(c)
+        }
+        tmp.push(tt)
+    }
+
+    for(step of path) {
+        tmp[step[1]][step[0]] = 2
+    }
+    for(step of spec) {
+        tmp[step[1]][step[0]] = 3
+    }
+    for(step of target) {
+        tmp[step[1]][step[0]] = 4
+    }
+    return tmp;    
+}
+
 function getMove(direction, dx, dy) {
-    console.log(direction);
     if (direction == 'UP') {
         if(dy == 1)
             return 'ACCELERATION';
         else if (dx == 1)
-            return 'CAR_INDEX_RIGHT';
+            return 'GO_LEFT';
         else if (dx == -1)
-            return 'CAR_INDEX_LEFT';
+            return 'GO_RIGHT';
         else 
-            return 'CAR_INDEX_LEFT';
+            return 'GO_LEFT';
+        
+
     }
     if (direction == 'DOWN') {
         if(dy == -1)
             return 'ACCELERATION';
         else if (dx == 1)
-            return 'CAR_INDEX_RIGHT';
+            return 'GO_RIGHT';
         else if (dx == -1)
-            return 'CAR_INDEX_LEFT';
+            return 'GO_LEFT';
         else 
-            return 'CAR_INDEX_RIGHT';
+            return 'GO_RIGHT';
+        
     }
     if (direction == 'LEFT') {
         if(dx == 1)
             return 'ACCELERATION';
         else if (dy == 1)
-            return 'CAR_INDEX_RIGHT';
+            return 'GO_RIGHT';
         else if (dy == -1)
-            return 'CAR_INDEX_LEFT';
+            return 'GO_LEFT';
         else 
-            return 'CAR_INDEX_LEFT';
+            return 'GO_LEFT';
     }
     if (direction == 'RIGHT') {
         if(dx == -1)
             return 'ACCELERATION';
         else if (dy == 1)
-            return 'CAR_INDEX_LEFT';
+            return 'GO_LEFT';
         else if (dy == -1)
-            return 'CAR_INDEX_RIGHT';
+            return 'GO_RIGHT';
         else 
-            return 'CAR_INDEX_RIGHT';
+            return 'GO_RIGHT';
     }
 }
 
-console.log(getDirAtCommand('DOWN','>'))
+
+//console.log(getDirAtCommand('DOWN','>'))
 
 function getDirAtCommand(direction,command){
     if(command == '0' || command =='+' || command == '-')
@@ -119,10 +170,10 @@ function getDirAtCommand(direction,command){
         }
     } else if (direction == 'DOWN'){
         if(command =='>'){
-            return 'RIGHT';
+            return 'LEFT';
         }
         if(command == '<'){
-            return 'LEFT';
+            return 'RIGHT';
         }
     } else if (direction == 'LEFT'){
         if(command =='>'){
@@ -142,19 +193,21 @@ function getDirAtCommand(direction,command){
 }
 
 function setPath(data){
-    if(path.length > 0)
-        return;
-    if(data.transported > 0){
+    var car = data.cars.find(car => car.id == 0);
+    if(car.passenger_id ){
         setPathToPassengerDest(data);
     }else{
         setPathToNextPassenger(data);
     }
 }
 
+
 function setPathToPassengerDest(data){
     var car = data.cars.find(car => car.id == 0);
-    var passenger = data.passengers.find(pass => pass.id == car.passenger_id);
-    path = findPath(car.pos.x, car.pos.y,passenger.dest_pos.x , passenger.dest_pos.y);
+    var passengers = data.passengers.find(pass => pass.id == car.passenger_id);
+    
+    var getInPosition = findPositionToGetIn({pos: passengers.dest_pos},car);
+    path = findPath(car.pos.x, car.pos.y,getInPosition.pos.x, getInPosition.pos.y);
 }
 
 function setPathToNextPassenger(data){
@@ -236,7 +289,6 @@ function createPathFromPrevList(destination, mapOfPreviousTiles){
     }
     reversePath.reverse();
     reversePath.shift();
-    console.log(reversePath);
     return reversePath;
 }
 

@@ -21,11 +21,12 @@ console.log(testList.splice(1,testList.length))*/
 var i = 0;
 client.on('data', function(data) {
     data = JSON.parse(data.toString());
+    calculateNewCarPos(data);
     car = data.cars.filter(x => !x.id)[0]
     carPos = car.pos;
-        
-    setPath(data);
     
+    setPath(data);
+    path.push(path[path.length-1]);
 
 
     //if(car.command == "+")
@@ -33,31 +34,36 @@ client.on('data', function(data) {
         
     var command;
     if(path.length > 1){
-        if(car.speed == 0){
+        if(car.speed == 0&&!car.command=="+"){
             dx = car.pos.x - path[0].pos.x;
             dy = car.pos.y - path[0].pos.y;
+            command  = getMove(car.direction, dx, dy);
         }else{
+            
             dx = path[0].pos.x - path[1].pos.x;
             dy = path[0].pos.y - path[1].pos.y;
             
+            command  = getMove2(getDirAtCommand(car.direction,car.command), dx, dy);
+
         }
-        command  = getMove(car.direction, dx, dy);
 
 
         var mwithpp = addPath(walkable, path.map(x => [x.pos.x,x.pos.y]), [[carPos.x, carPos.y]],[]);
         // var mwithpp = addPath(walkable, path.map(x => [x.pos.x,x.pos.y]), [], [[path[path.length-1].x, path[path.length-1].y]]);
         printMap(mwithpp);
 
-        if(car.speed >= 1 && command == 'ACCELERATION')
+        if((car.speed >= 1 || car.command == "+") && (command == 'ACCELERATION' || command == 'FULL_THROTTLE'))
             command = 'NO_OP'
     }else{
         command = 'DECELERATION';
 
     }
 
+
+
     //client.write(JSON.stringify({request_id: data.request_id, command: command}));
 
-    console.log('prev car ifnos  ',car.command+"  ",car.direction+"  "+car.speed,car.life,car.transported);
+    console.log('prev car ifnos  ',car.command+"  ",car.direction+"  ",car.speed,car.life,car.transported);
     console.log('SENT:', command +"  ",dx + "  ",dy);
     console.log(carPos,"  ",path[0])
     console.log()
@@ -71,6 +77,27 @@ client.on('data', function(data) {
 client.on('close', function() {
 	console.log('Connection closed');
 });
+
+
+function calculateNewCarPos(data){
+    car = data.cars.filter(x => !x.id)[0]
+    if(car.speed > 0 || car.command == "+"){
+        if(car.direction == 'LEFT')
+            car.pos.x--;
+        if(car.direction == 'RIGHT')
+            car.pos.x++;
+        if(car.direction == 'UP' )
+            car.pos.y--;
+        if(car.direction == 'DOWN')
+            car.pos.y++;
+        car.pos.x += 60;
+        car.pos.y += 60;
+        car.pos.x = car.pos.x % 60;
+        car.pos.y = car.pos.y % 60;
+    }
+    else
+        return data;
+}
 
 function printMap(map) {
     console.log(map.map(x => x.map(x => {
@@ -109,13 +136,47 @@ function addPath(matrix, path, spec, target) {
     return tmp;    
 }
 
+function getDirAtCommand(direction,command){
+    if(command == '0' || command =='+' || command == '-')
+        return direction;
+    if (direction == 'UP'){
+        if(command =='>'){
+            return 'RIGHT';
+        }
+        if(command == '<'){
+            return 'LEFT';
+        }
+    } else if (direction == 'DOWN'){
+        if(command =='<'){
+            return 'RIGHT';
+        }
+        if(command == '>'){
+            return 'LEFT';
+        }
+    } else if (direction == 'LEFT'){
+        if(command =='>'){
+            return 'UP';
+        }
+        if(command == '<'){
+            return 'DOWN';
+        }
+    } else if (direction == 'RIGHT'){
+        if(command =='>'){
+            return 'DOWN';
+        }
+        if(command == '<'){
+            return 'UP';
+        }
+    }
+}
+
 function getMove(direction, dx, dy) {
     if (direction == 'UP') {
-        if(dy == 1)
+        if(dy == 1 ||dy== -59)
             return 'ACCELERATION';
-        else if (dx == 1)
+        else if (dx == 1 || dx== -59)
             return 'GO_LEFT';
-        else if (dx == -1)
+        else if (dx == -1 ||dx== 59)
             return 'GO_RIGHT';
         else 
             return 'GO_LEFT';
@@ -123,38 +184,80 @@ function getMove(direction, dx, dy) {
 
     }
     if (direction == 'DOWN') {
-        if(dy == -1)
+        if(dy == -1|| dy==59)
             return 'ACCELERATION';
-        else if (dx == 1)
+        else if (dx == 1 ||dx== -59)
             return 'GO_RIGHT';
-        else if (dx == -1)
+        else if (dx == -1||dx==59)
             return 'GO_LEFT';
         else 
             return 'GO_RIGHT';
         
     }
     if (direction == 'LEFT') {
-        if(dx == 1)
+        if(dx == 1||dx== -59)
             return 'ACCELERATION';
-        else if (dy == 1)
+        else if (dy == 1||dy== -59)
             return 'GO_RIGHT';
-        else if (dy == -1)
+        else if (dy == -1||dy== 59)
             return 'GO_LEFT';
         else 
             return 'GO_LEFT';
     }
     if (direction == 'RIGHT') {
-        if(dx == -1)
+        if(dx == -1||dx== 59)
             return 'ACCELERATION';
-        else if (dy == 1)
+        else if (dy == 1||dy== -59)
             return 'GO_LEFT';
-        else if (dy == -1)
+        else if (dy == -1|| dy==59)
             return 'GO_RIGHT';
         else 
             return 'GO_RIGHT';
     }
 }
-
+function getMove2(direction, dx, dy) {
+    console.log(direction);
+    if (direction == 'UP') {
+        if(dy == 1||dy==- 59)
+            return 'FULL_THROTTLE';
+        else if (dx == 1||dx==- 59)
+            return 'CAR_INDEX_LEFT';
+        else if (dx == -1||dx== 59)
+            return 'CAR_INDEX_RIGHT';
+        else 
+            return 'CAR_INDEX_LEFT';
+    }
+    if (direction == 'DOWN') {
+        if(dy == -1||dy== 59)
+            return 'FULL_THROTTLE';
+        else if (dx == 1||dx==- 59)
+            return 'CAR_INDEX_RIGHT';
+        else if (dx == -1||dx== 59)
+            return 'CAR_INDEX_LEFT';
+        else 
+            return 'CAR_INDEX_RIGHT';
+    }
+    if (direction == 'LEFT') {
+        if(dx == 1||dx==- 59)
+            return 'FULL_THROTTLE';
+        else if (dy == 1||dy==- 59)
+            return 'CAR_INDEX_RIGHT';
+        else if (dy == -1||dy==59)
+            return 'CAR_INDEX_LEFT';
+        else 
+            return 'CAR_INDEX_LEFT';
+    }
+    if (direction == 'RIGHT') {
+        if(dx == -1|| dx==59)
+            return 'FULL_THROTTLE';
+        else if (dy == 1||dy==- 59)
+            return 'CAR_INDEX_LEFT';
+        else if (dy == -1|| dy==59)
+            return 'CAR_INDEX_RIGHT';
+        else 
+            return 'CAR_INDEX_RIGHT';
+    }
+}
 
 //console.log(getDirAtCommand('DOWN','>'))
 
@@ -241,14 +344,14 @@ function findPath(startX, startY, destX, destY){
 
                 var tileInOpenList = openList.find(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y);
                 var maybeBetterWayValue = tileToProcess.distance + 1 + clalculateHeuristic(avalaibleTiles[i],destination);
-                if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
-                    maybeBetterWayValue++;
+                //if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
+                   // maybeBetterWayValue++;
                 if(maybeBetterWayValue < tileInOpenList.heuristic + tileInOpenList.distance){
                     var heuristic = clalculateHeuristic(destination, avalaibleTiles[i]);
                     var newTile = { pos: {x:avalaibleTiles[i].pos.x, y: avalaibleTiles[i].pos.y}, heuristic: heuristic, distance: tileToProcess.distance+1};
                     
-                    if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
-                        newTile.distance++;
+                    //if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
+                        //newTile.distance++;
                     var indexOfTile = mapOfPreviousTiles.findIndex(element => element.to.pos.x == newTile.pos.x && element.to.pos.y == newTile.pos.y)
                     openList.splice(indexOfTile,1);
                     mapOfPreviousTiles.push({from: tileToProcess, to: newTile});
@@ -260,8 +363,8 @@ function findPath(startX, startY, destX, destY){
                     
                     if(mapOfPreviousTiles.some(element => element.to.pos.x == tileToProcess.pos.x && element.to.pos.y == tileToProcess.pos.y)){
                         var routeToProcessedTile = mapOfPreviousTiles.find(element => element.to.pos.x == tileToProcess.pos.x && element.to.pos.y == tileToProcess.pos.y);
-                        if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
-                            newTile.distance++;
+                        //if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
+                            //newTile.distance++;
                     }
                     openList.push(newTile);
                     mapOfPreviousTiles.push({from: tileToProcess, to: newTile});
@@ -381,13 +484,16 @@ function closerToEdge(openListElement, tileToProcess){
 function findPositionToGetIn(passenger,car){
 
     //Ne legyen tulindexeles
-    var upCoordinate = passenger.pos.y-1 > 0 ? passenger.pos.y-1 : passenger.pos.x+1;
+    var upCoordinate = passenger.pos.y-1 > 0 ? passenger.pos.y-1 : passenger.pos.y+1;
     var leftCoordinate = passenger.pos.x-1 >  0 ? passenger.pos.x-1 :passenger.pos.x+1;
     var rightCoordinate = passenger.pos.x+1 < 60 ? passenger.pos.x+1 : passenger.pos.x-1;
     var downCoordinate = passenger.pos.y+1 < 60 ? passenger.pos.y+1 : passenger.pos.y-1;
     var accessableGetIns = getAccessableNeighbors(upCoordinate,rightCoordinate,downCoordinate,leftCoordinate,passenger);
 
+    
+
     var closestGetIn = accessableGetIns[0];
+
 
     for(var i = 0; i < accessableGetIns.length; i++){
         if( clalculateHeuristic(car, accessableGetIns[i]) < clalculateHeuristic(car, closestGetIn))
@@ -397,11 +503,15 @@ function findPositionToGetIn(passenger,car){
     return closestGetIn;
 }
 
-function getAccessableNeighbors(upCoordinate,rightCoordinate,downCoordinate,leftCoordinate,center){
-    return[
-        {accessable: walkable[upCoordinate][center.pos.x ], pos: {x: center.pos.x, y:upCoordinate}},
+function getAccessableNeighbors(upCoordinate,rightCoordinate,downCoordinate,leftCoordinate,center,nofilter = false){
+    var maybegetins = [{accessable: walkable[upCoordinate][center.pos.x ], pos: {x: center.pos.x, y:upCoordinate}},
         {accessable: walkable[downCoordinate][center.pos.x ], pos: {x: center.pos.x, y:downCoordinate}},
         {accessable: walkable[center.pos.y][leftCoordinate ], pos: {x: leftCoordinate, y:center.pos.y}},
-        {accessable: walkable[center.pos.y][rightCoordinate ], pos: {x: rightCoordinate, y:center.pos.y}}].filter(getIn => getIn.accessable == 0);
+        {accessable: walkable[center.pos.y][rightCoordinate ], pos: {x: rightCoordinate, y:center.pos.y}}];
+    var legitGetins = maybegetins.filter(getIn => getIn.accessable == 0);
+    if(legitGetins.length>0)
+        return legitGetins;
+    else
+        return maybegetins;
 
 }

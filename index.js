@@ -11,6 +11,7 @@ token = "XCm41v5wXaM3TzNraLdRNIoHH159v1PXaQiE2ARfNDmF1RQuxmYzTCm3HJWGuGsuGckiDuw
 var walkable = map.map(x => x.split('').map(x => (x == 'S' || x == 'Z') ? 0 : 1))
 
 var path = [];
+var pathEnd = {pos:{x:3,y:3}};
 
 client.connect(12323, '31.46.64.35', function() {
 	client.write(JSON.stringify({token}));
@@ -18,7 +19,8 @@ client.connect(12323, '31.46.64.35', function() {
 
 /*var testList = [1,2,3,4,5,6,7,8,9]
 console.log(testList.splice(1,testList.length))*/
-var i = 0;
+
+
 client.on('data', function(data) {
     data = JSON.parse(data.toString());
     calculateNewCarPos(data);
@@ -26,12 +28,8 @@ client.on('data', function(data) {
     carPos = car.pos;
     
     setPath(data);
-    path.push(path[path.length-1]);
+    path.push(pathEnd);
 
-
-    //if(car.command == "+")
-    //    path.shift();
-        
     var command;
     if(path.length > 1){
         if(car.speed == 0&&!car.command=="+"){
@@ -48,13 +46,13 @@ client.on('data', function(data) {
         }
 
 
-        var mwithpp = addPath(walkable, path.map(x => [x.pos.x,x.pos.y]), [[carPos.x, carPos.y]],[]);
+        //var mwithpp = addPath(walkable, path.map(x => [x.pos.x,x.pos.y]), [[carPos.x, carPos.y]],[]);
         // var mwithpp = addPath(walkable, path.map(x => [x.pos.x,x.pos.y]), [], [[path[path.length-1].x, path[path.length-1].y]]);
-        printMap(mwithpp);
+        //printMap(mwithpp);
 
         if((car.speed >= 1 || car.command == "+") && (command == 'ACCELERATION' || command == 'FULL_THROTTLE'))
             command = 'NO_OP'
-    }else{
+    }else if(path.length == 1){
         command = 'DECELERATION';
 
     }
@@ -63,15 +61,15 @@ client.on('data', function(data) {
 
     //client.write(JSON.stringify({request_id: data.request_id, command: command}));
 
-    console.log('prev car ifnos  ',car.command+"  ",car.direction+"  ",car.speed,car.life,car.transported);
-    console.log('SENT:', command +"  ",dx + "  ",dy);
-    console.log(carPos,"  ",path[0])
-    console.log()
-
-    setTimeout(x => {
+    //console.log('prev car ifnos  ',car.command+"  ",car.direction+"  ",car.speed,car.life,car.transported,data.tick);
+    //console.log('SENT:', command +"  ",dx + "  ",dy);
+    //console.log(carPos,"  ",path[0])
+    //console.log()
+    client.write(JSON.stringify({request_id: data.request_id, command: command}));
+    /*setTimeout(x => {
         client.write(JSON.stringify({request_id: data.request_id, command: command}));
 
-    }, 1);
+    }, 1);*/
 });
 
 client.on('close', function() {
@@ -216,10 +214,9 @@ function getMove(direction, dx, dy) {
     }
 }
 function getMove2(direction, dx, dy) {
-    console.log(direction);
     if (direction == 'UP') {
         if(dy == 1||dy==- 59)
-            return 'FULL_THROTTLE';
+            return 'ACCELERATION';
         else if (dx == 1||dx==- 59)
             return 'CAR_INDEX_LEFT';
         else if (dx == -1||dx== 59)
@@ -229,7 +226,7 @@ function getMove2(direction, dx, dy) {
     }
     if (direction == 'DOWN') {
         if(dy == -1||dy== 59)
-            return 'FULL_THROTTLE';
+            return 'ACCELERATION';
         else if (dx == 1||dx==- 59)
             return 'CAR_INDEX_RIGHT';
         else if (dx == -1||dx== 59)
@@ -239,7 +236,7 @@ function getMove2(direction, dx, dy) {
     }
     if (direction == 'LEFT') {
         if(dx == 1||dx==- 59)
-            return 'FULL_THROTTLE';
+            return 'ACCELERATION';
         else if (dy == 1||dy==- 59)
             return 'CAR_INDEX_RIGHT';
         else if (dy == -1||dy==59)
@@ -249,7 +246,7 @@ function getMove2(direction, dx, dy) {
     }
     if (direction == 'RIGHT') {
         if(dx == -1|| dx==59)
-            return 'FULL_THROTTLE';
+            return 'ACCELERATION';
         else if (dy == 1||dy==- 59)
             return 'CAR_INDEX_LEFT';
         else if (dy == -1|| dy==59)
@@ -310,14 +307,39 @@ function setPathToPassengerDest(data){
     var passengers = data.passengers.find(pass => pass.id == car.passenger_id);
     
     var getInPosition = findPositionToGetIn({pos: passengers.dest_pos},car);
-    path = findPath(car.pos.x, car.pos.y,getInPosition.pos.x, getInPosition.pos.y);
+
+    if(getInPosition == undefined){
+        getInPosition = findPositionToGetIn({pos: passengers.dest_pos},car,true);
+
+        var smoothGetIn = findPositionToGetIn({pos: passengers.dest_pos},car);
+        path = findPath(car.pos.x, car.pos.y, smoothGetIn.pos.x, smoothGetIn.pos.y);
+        path.push(getInPosition);
+    }else{
+        path = findPath(car.pos.x, car.pos.y,getInPosition.pos.x, getInPosition.pos.y);
+    }
+    if(path.length>2){
+        pathEnd.pos.x = path[path.length-2].pos.x - path[path.length-1].pos.x;
+        pathEnd.pos.y = path[path.length-2].pos.y - path[path.length-1].pos.y;
+    }
 }
 
 function setPathToNextPassenger(data){
     var car = data.cars.find(car => car.id == 0);
     var passenger = data.passengers[0];
     var getInPosition = findPositionToGetIn(passenger,car);
-    path = findPath(car.pos.x, car.pos.y, getInPosition.pos.x, getInPosition.pos.y);
+
+    if(getInPosition == undefined){
+        getInPosition = findPositionToGetIn(passenger,car,true);
+        var smoothGetIn = findPositionToGetIn(getInPosition,car);
+        path = findPath(car.pos.x, car.pos.y, smoothGetIn.pos.x, smoothGetIn.pos.y);
+        path.push(getInPosition);
+    }else{
+        path = findPath(car.pos.x, car.pos.y, getInPosition.pos.x, getInPosition.pos.y);
+    }
+    if(path.length>2){
+        pathEnd.pos.x = path[path.length-2].pos.x - path[path.length-1].pos.x;
+        pathEnd.pos.y = path[path.length-2].pos.y - path[path.length-1].pos.y;
+    }
 }
 
 //console.log(findPath(3,3,57,57));
@@ -345,13 +367,13 @@ function findPath(startX, startY, destX, destY){
                 var tileInOpenList = openList.find(element => element.pos.x == avalaibleTiles[i].pos.x && element.pos.y == avalaibleTiles[i].pos.y);
                 var maybeBetterWayValue = tileToProcess.distance + 1 + clalculateHeuristic(avalaibleTiles[i],destination);
                 //if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
-                   // maybeBetterWayValue++;
+                //    maybeBetterWayValue++;
                 if(maybeBetterWayValue < tileInOpenList.heuristic + tileInOpenList.distance){
                     var heuristic = clalculateHeuristic(destination, avalaibleTiles[i]);
                     var newTile = { pos: {x:avalaibleTiles[i].pos.x, y: avalaibleTiles[i].pos.y}, heuristic: heuristic, distance: tileToProcess.distance+1};
                     
                     //if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
-                        //newTile.distance++;
+                    //    newTile.distance++;
                     var indexOfTile = mapOfPreviousTiles.findIndex(element => element.to.pos.x == newTile.pos.x && element.to.pos.y == newTile.pos.y)
                     openList.splice(indexOfTile,1);
                     mapOfPreviousTiles.push({from: tileToProcess, to: newTile});
@@ -364,7 +386,7 @@ function findPath(startX, startY, destX, destY){
                     if(mapOfPreviousTiles.some(element => element.to.pos.x == tileToProcess.pos.x && element.to.pos.y == tileToProcess.pos.y)){
                         var routeToProcessedTile = mapOfPreviousTiles.find(element => element.to.pos.x == tileToProcess.pos.x && element.to.pos.y == tileToProcess.pos.y);
                         //if(isThereTurn(routeToProcessedTile,avalaibleTiles[i]))
-                            //newTile.distance++;
+                        //    newTile.distance++;
                     }
                     openList.push(newTile);
                     mapOfPreviousTiles.push({from: tileToProcess, to: newTile});
@@ -391,7 +413,9 @@ function createPathFromPrevList(destination, mapOfPreviousTiles){
         reversePath.push(mapOfPreviousTiles.find(element => element.to.pos.x == lastTileInPath.pos.x && element.to.pos.y == lastTileInPath.pos.y).from);
     }
     reversePath.reverse();
+
     reversePath.shift();
+    
     return reversePath;
 }
 
@@ -481,16 +505,23 @@ function closerToEdge(openListElement, tileToProcess){
         return false;
 }
 
-function findPositionToGetIn(passenger,car){
+function findPositionToGetIn(passenger,car,nofilter=false){
 
     //Ne legyen tulindexeles
     var upCoordinate = passenger.pos.y-1 > 0 ? passenger.pos.y-1 : passenger.pos.y+1;
     var leftCoordinate = passenger.pos.x-1 >  0 ? passenger.pos.x-1 :passenger.pos.x+1;
     var rightCoordinate = passenger.pos.x+1 < 60 ? passenger.pos.x+1 : passenger.pos.x-1;
     var downCoordinate = passenger.pos.y+1 < 60 ? passenger.pos.y+1 : passenger.pos.y-1;
-    var accessableGetIns = getAccessableNeighbors(upCoordinate,rightCoordinate,downCoordinate,leftCoordinate,passenger);
+    var accessableGetIns = getAccessableNeighbors(upCoordinate,rightCoordinate,downCoordinate,leftCoordinate,passenger,nofilter);
 
-    
+    if(nofilter){
+        var newGetIns  = [];
+        for(var i = 0; i < accessableGetIns.length; i++){
+            if(findPositionToGetIn(accessableGetIns[i],car) != undefined)
+                newGetIns.push(accessableGetIns[i]);
+        }
+        accessableGetIns = newGetIns;
+    }
 
     var closestGetIn = accessableGetIns[0];
 
@@ -503,15 +534,12 @@ function findPositionToGetIn(passenger,car){
     return closestGetIn;
 }
 
-function getAccessableNeighbors(upCoordinate,rightCoordinate,downCoordinate,leftCoordinate,center,nofilter = false){
+function getAccessableNeighbors(upCoordinate,rightCoordinate,downCoordinate,leftCoordinate,center,nofilter=false){
     var maybegetins = [{accessable: walkable[upCoordinate][center.pos.x ], pos: {x: center.pos.x, y:upCoordinate}},
         {accessable: walkable[downCoordinate][center.pos.x ], pos: {x: center.pos.x, y:downCoordinate}},
         {accessable: walkable[center.pos.y][leftCoordinate ], pos: {x: leftCoordinate, y:center.pos.y}},
         {accessable: walkable[center.pos.y][rightCoordinate ], pos: {x: rightCoordinate, y:center.pos.y}}];
-    var legitGetins = maybegetins.filter(getIn => getIn.accessable == 0);
-    if(legitGetins.length>0)
-        return legitGetins;
-    else
-        return maybegetins;
+    var legitGetins = maybegetins.filter(getIn => getIn.accessable == 0|| nofilter);
+    return legitGetins;
 
 }
